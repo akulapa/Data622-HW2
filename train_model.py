@@ -2,26 +2,17 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sun Sep  9 22:11:13 2018
-
 @author: Pavan Akula
-
 References
 - https://ahmedbesbes.com/how-to-score-08134-in-titanic-kaggle-challenge.html
 - https://www.datacamp.com/community/tutorials/categorical-data
+- https://www.youtube.com/watch?v=0GrciaGYzV0
 """
-
-
 
 import os
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-from sklearn import cross_validation
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import ShuffleSplit
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.cross_validation import KFold
-from sklearn.model_selection import cross_val_predict
+from sklearn.metrics import roc_auc_score
 import pickle
 
 
@@ -120,36 +111,66 @@ train['Title'] = train['Title'].map({'Mrs':0, 'Miss':1, 'Mr':2, 'Master':3, 'Off
 train['Embarked'] = train['Embarked'].map({'C':0, 'Q':1, 'S':2})
 train['Deck'] = train['Deck'].map({'A':0, 'B':1, 'C':2, 'D':3, 'E':4, 'F':5, 'G':6, 'T':7, 'U':8})
 
-#train['Sex'] = train['Sex'].astype('category')
-#train['Family'] = train['Family'].astype('category')
-#train['Title'] = train['Title'].astype('category')
-#train['Embarked'] = train['Embarked'].astype('category')
-#train['Deck'] = train['Deck'].astype('category')
-#train['Survived'] = train['Survived'].astype('category')
-#train['Pclass'] = train['Pclass'].astype('category')
-
+train['Sex'] = train['Sex'].astype('category')
+train['Family'] = train['Family'].astype('category')
+train['Title'] = train['Title'].astype('category')
+train['Embarked'] = train['Embarked'].astype('category')
+train['Deck'] = train['Deck'].astype('category')
+train['Survived'] = train['Survived'].astype('category')
+train['Pclass'] = train['Pclass'].astype('category')
 
 train['TicketNumber'] = train['TicketNumber'].map(lambda t: train[train['TicketNumber'] != 'XXX'].TicketNumber.median() if t=='XXX' else float(t))
 
 train = process_missing_age()
 
+X = train.drop('Survived', axis=1)
+y = train['Survived']
+
+model = RandomForestRegressor(n_estimators=100, random_state=1, oob_score=True)
+model.fit(X, y)
+roc_auc_score(y, model.oob_prediction_)
+
+features = pd.DataFrame()
+features['feature'] = X.columns
+features['importance'] = model.feature_importances_
+features.sort_values(by=['importance'], ascending=True, inplace=True)
+features.set_index('feature', inplace=True)
+features.plot(kind='barh')
+
 predictors = ['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked', 'Title', 'Deck', 'TicketNumber', 'Family']
-lr = LogisticRegression(random_state=1)
-cv = ShuffleSplit(n_splits=10, test_size=0.3, random_state=50)
 
-scores = cross_val_score(lr, train[predictors], train['Survived'], scoring='f1', cv=cv)
+results = []
+n_estimators_options = [10, 20, 40, 80, 150, 200, 300, 500, 600, 700, 800, 900, 1000, 1200, 1500, 1700, 1800, 2000]
+for trees in n_estimators_options:
+    model = RandomForestRegressor(random_state=1, n_estimators=trees, min_samples_split=2, min_samples_leaf=1, oob_score=True)
+    model.fit(train[predictors], train['Survived'])
+    print (trees, 'trees')
+    roc = roc_auc_score(train['Survived'], model.oob_prediction_)
+    print ("ROC:", roc)
+    results.append(roc)
+    print ("")
+    
+pd.Series(results, n_estimators_options).plot()
 
-print(scores.mean())
+results = []
+leaf_option = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+for leaf in leaf_option:
+    model = RandomForestRegressor(random_state=1, n_estimators=1000, min_samples_split=2, min_samples_leaf=leaf, oob_score=True)
+    model.fit(train[predictors], train['Survived'])
+    print (leaf, 'leaf')
+    roc = roc_auc_score(train['Survived'], model.oob_prediction_)
+    print ("ROC:", roc)
+    results.append(roc)
+    print ("")
+    
+pd.Series(results, leaf_option).plot()
 
-rf = RandomForestClassifier(random_state=1, n_estimators=10, min_samples_split=2, min_samples_leaf=1)
+model = RandomForestRegressor(random_state=1, n_estimators=1000, min_samples_split=2, min_samples_leaf=6, oob_score=True)
+model.fit(train[predictors], train['Survived'])
+roc = roc_auc_score(train['Survived'], model.oob_prediction_)
+print ("ROC:", roc)
 
-kf = KFold(train.shape[0], n_folds=5, random_state=1)
-cv = ShuffleSplit(n_splits=10, test_size=0.3, random_state=50)
+pickleFile = os.path.join (os.getcwd(), 'data/modelPickle.pkl') 
+pickle.dump(model, open(pickleFile, 'wb'))
 
-predictions = cross_validation.cross_val_predict(rf, train[predictors], train['Survived'], cv=kf)
 
-predictions = pd.Series(predictions)
-
-scores = cross_val_score(rf, train[predictors], train['Survived'], scoring='f1', cv=kf)
-
-print(scores.mean())
