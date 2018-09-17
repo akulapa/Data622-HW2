@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sun Sep  9 22:11:13 2018
-@author: Pavan Akula
-References
-- https://ahmedbesbes.com/how-to-score-08134-in-titanic-kaggle-challenge.html
-- https://www.datacamp.com/community/tutorials/categorical-data
-- https://www.youtube.com/watch?v=0GrciaGYzV0
-"""
+Created on Sun Sep 16 20:51:58 2018
 
+@author: Pavan Akula
+"""
 #import required libraries
 import os
 import pandas as pd
@@ -16,9 +12,9 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 import pickle
 
-#Load training data
-trainFile = os.path.join (os.getcwd(), 'data/train.csv')
-train = pd.read_csv(trainFile, delimiter = ',')
+#Load test data
+testFile = os.path.join (os.getcwd(), 'data/test.csv')
+test = pd.read_csv(testFile, delimiter = ',')
 
 def process_ticket():
     """
@@ -27,7 +23,7 @@ def process_ticket():
     One advantage of writing function after initiating is variables is they can be called using global and manipulate them
     """
     #Refer the dataset using global
-    global train
+    global test
     
     # a function that extracts numeric value from the ticket, returns 'Unk' if no numeric postfix
     def cleanTicket(ticket):
@@ -43,19 +39,19 @@ def process_ticket():
             return np.nan
     
     # map cleanTicket function and extract the value for each row:
-    train['TicketNumber'] = train['Ticket'].map(cleanTicket)
-    return train
+    test['TicketNumber'] = test['Ticket'].map(cleanTicket)
+    return test
 
 
 def process_missing_age():
     #Function to calculate missing values for age
-    global train
+    global test
     
     #Get observations with non NA values for Age
-    train_age = train.loc[(train.Age.notnull())]
+    train_age = test.loc[(test.Age.notnull())]
     
     #Get observations with NA values for Age
-    test_age = train.loc[(train.Age.isnull())]
+    test_age = test.loc[(test.Age.isnull())]
     
     #Seperate X and y values for training dataset
     X_train = train_age.drop('Age', axis=1).values
@@ -72,9 +68,9 @@ def process_missing_age():
     predictedAges = ramdomForest.predict(X_test)
     
     #Apply to the dataset
-    train.loc[(train.Age.isnull()), 'Age'] = predictedAges
+    test.loc[(test.Age.isnull()), 'Age'] = predictedAges
     
-    return train
+    return test
 
 #Wikipedia suggests "Jonkheer" and "Countess" is honorific titile
 #https://en.wikipedia.org/wiki/Jonkheer
@@ -105,67 +101,81 @@ Title_Dictionary = {
 #Split the value again based on seperator(.), get first value(0)
 #ultimately get prefix value
 
-train['Title'] = train['Name'].map(lambda Name:Name.split(',')[1].split('.')[0].strip())
-train['Title'] = train.Title.map(Title_Dictionary)
+test['Title'] = test['Name'].map(lambda Name:Name.split(',')[1].split('.')[0].strip())
+test['Title'] = test.Title.map(Title_Dictionary)
 
 #Extract first letter from Cabin value, store it into new column 'Deck'
-train['Deck'] = train.Cabin.str[0]
-train.Deck.fillna('U', inplace=True)
+test['Deck'] = test.Cabin.str[0]
+test.Deck.fillna('U', inplace=True)
 
 #Get numeric value of the ticket
-train = process_ticket()
+test = process_ticket()
 
 #New derived variable
-train['Family'] = (train['Parch'] + train['SibSp']).map(lambda s: 'Single' if s <= 1 else 'Small' if s >= 2 and s < 5 else 'Large' if s >= 5 else 'Unknown')
-
-#Columns with null values
-null_columns=train.columns[train.isnull().any()]
-train[null_columns].isnull().sum()
+test['Family'] = (test['Parch'] + test['SibSp']).map(lambda s: 'Single' if s <= 1 else 'Small' if s >= 2 and s < 5 else 'Large' if s >= 5 else 'Unknown')
 
 #Following variable were used for deriving new variables
-train.drop('Name', inplace=True, axis=1)
-train.drop('PassengerId', inplace=True, axis=1)
-train.drop('Ticket', inplace=True, axis=1)
-train.drop('Cabin', inplace=True, axis=1)
+test.drop('Name', inplace=True, axis=1)
+test.drop('PassengerId', inplace=True, axis=1)
+test.drop('Ticket', inplace=True, axis=1)
+test.drop('Cabin', inplace=True, axis=1)
 
 #As fare matches the average fare impute missing value with 'C'
-train['Embarked'] = train['Embarked'].fillna('C')
+test['Embarked'] = test['Embarked'].fillna('C')
+
+#Columns with null values
+print("Variables with missing values")
+test.isnull().sum()
+
+#Columns with null values
+#null_columns=test.columns[test.isnull().any()]
+#test[null_columns].isnull().sum()
+
+#Display missing value for fare
+#Let impute missing fare value with median value
+#Replace missing fare by median values
+test[test['Fare'].isnull()]
+fareMedian = test[((test['Fare'].notnull()) & (test['Embarked']=='S'))].Fare.median()
+test['Fare'] = test['Fare'].fillna(float(fareMedian))
+
+#Display missing value for fare
+#Let impute missing Title value with based on gender
+#Since gender of the passenger is female, we can impute the values 'Miss', as she is travelling by herself(SibSp and Parch is 0)
+test[test['Title'].isnull()]
+test['Title'] = test['Title'].fillna('Miss')
 
 #Convet values into numeric categorical values
-train['Sex'] = train['Sex'].map({'female':0, 'male':1})
-train['Family'] = train['Family'].map({'Single':0, 'Small':1, 'Large':2})
-train['Title'] = train['Title'].map({'Mrs':0, 'Miss':1, 'Mr':2, 'Master':3, 'Officer':4, 'Royalty':5})
-train['Embarked'] = train['Embarked'].map({'C':0, 'Q':1, 'S':2})
-train['Deck'] = train['Deck'].map({'A':0, 'B':1, 'C':2, 'D':3, 'E':4, 'F':5, 'G':6, 'T':7, 'U':8})
+test['Sex'] = test['Sex'].map({'female':0, 'male':1})
+test['Family'] = test['Family'].map({'Single':0, 'Small':1, 'Large':2})
+test['Title'] = test['Title'].map({'Mrs':0, 'Miss':1, 'Mr':2, 'Master':3, 'Officer':4, 'Royalty':5})
+test['Embarked'] = test['Embarked'].map({'C':0, 'Q':1, 'S':2})
+test['Deck'] = test['Deck'].map({'A':0, 'B':1, 'C':2, 'D':3, 'E':4, 'F':5, 'G':6, 'T':7, 'U':8})
 
 #Convert variables into categorical variables
-train['Sex'] = train['Sex'].astype('category')
-train['Family'] = train['Family'].astype('category')
-train['Title'] = train['Title'].astype('category')
-train['Embarked'] = train['Embarked'].astype('category')
-train['Deck'] = train['Deck'].astype('category')
-train['Survived'] = train['Survived'].astype('category')
-train['Pclass'] = train['Pclass'].astype('category')
+test['Sex'] = test['Sex'].astype('category')
+test['Family'] = test['Family'].astype('category')
+test['Title'] = test['Title'].astype('category')
+test['Embarked'] = test['Embarked'].astype('category')
+test['Deck'] = test['Deck'].astype('category')
+test['Pclass'] = test['Pclass'].astype('category')
 
 #Get median value
-ticketMedian = train[train['TicketNumber'].notnull()].TicketNumber.median()
+ticketMedian = test[test['TicketNumber'].notnull()].TicketNumber.median()
 
 #Replace missing ticketNumber by median values
-train['TicketNumber'] = train['TicketNumber'].fillna(int(ticketMedian))
+test['TicketNumber'] = test['TicketNumber'].fillna(int(ticketMedian))
+test['TicketNumber'] = test['TicketNumber'].astype('int')
 
 #Impute missing ages
-train = process_missing_age()
+test = process_missing_age()
 
-#Seperate dependent and independent variables
-X = train.drop('Survived', axis=1)
-y = train['Survived']
+#Independent variables
+X = test
 
-#We will be building Random forest regression model
-rf_model = RandomForestRegressor(random_state=1, n_estimators=1000, min_samples_split=2, min_samples_leaf=7, oob_score=True)
-rf_model.fit(X, y)
-
-#Save output to picket file
+# Load from file
 pickleFile = os.path.join (os.getcwd(), 'data/rf_model.pkl') 
-pickle.dump(rf_model, open(pickleFile, 'wb'))
+with open(pickleFile, 'rb') as file:  
+    rf_model = pickle.load(file)
+
 
 
