@@ -134,7 +134,7 @@ class imputeColumns(BaseEstimator, TransformerMixin):
                     dfTitle = df[df['Title'].isnull()]
                     
                     title = dfTitle.apply(lambda row: getTitle(row['Sex']), axis=1)
-                    df.loc[(df.Title.isnull()), 'Title'] = dfTitle
+                    df.loc[(df.Title.isnull()), 'Title'] = title
                     
                 if column == 'Fare':
                     #Get median fare based on boarding port
@@ -208,14 +208,11 @@ elmi_cols = ['Name', 'Ticket', 'Cabin', 'PassengerId']
 #Impute the columns and convert them into categorical values
 imp_cols = ['Title', 'Fare', 'Deck', 'TicketNumber','Embarked','Age']
 
-
 #Independent variables
 X = test
 
 # Load from file
+from sklearn.externals import joblib
 pickleFile = os.path.join (os.getcwd(), 'data/rf_model.pkl') 
-with open(pickleFile, 'rb') as file:  
-    rf_model = joblib.load(file)
-
-y_pred = rf_model.predict(X)
-
+a = joblib.load(pickleFile)
+b = a.predict(X)

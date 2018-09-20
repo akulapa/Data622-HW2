@@ -137,7 +137,7 @@ class imputeColumns(BaseEstimator, TransformerMixin):
                     dfTitle = df[df['Title'].isnull()]
                     
                     title = dfTitle.apply(lambda row: getTitle(row['Sex']), axis=1)
-                    df.loc[(df.Title.isnull()), 'Title'] = dfTitle
+                    df.loc[(df.Title.isnull()), 'Title'] = title
                     
                 if column == 'Fare':
                     #Get median fare based on boarding port
@@ -237,10 +237,13 @@ cv_grid = GridSearchCV(pipeLine, param_grid = reg_param_grid, verbose=1)
 cv_grid.fit(X_train, y_train)
 
 cv_grid.best_estimator_
+cv_grid.best_score_
+cv_grid.refit
 
-import dill as pickle
-#Save output to picket file
+from sklearn.externals import joblib
+##Save output to picket file
 pickleFile = os.path.join (os.getcwd(), 'data/rf_model.pkl') 
-pickle.dump(cv_grid, open(pickleFile, 'wb'))
+joblib.dump(cv_grid, pickleFile)
 
-
+a = joblib.load(pickleFile)
+b = a.predict(X_train)
